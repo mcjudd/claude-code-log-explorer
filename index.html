@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Log Explorer</title>
+    <style>
+        /* Base (Light) Theme Variables */
+        :root {
+            --bg-color: #f9fafb;
+            --chat-bg: #ffffff;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --user-bubble: #eff6ff;
+            --user-border: #bfdbfe;
+            --claude-bubble: #ffffff;
+            --claude-border: #e5e7eb;
+            --tool-bg: #f8fafc;
+            --code-bg: #1f2937;
+            --code-text: #f3f4f6;
+            --error-bg: #fef2f2;
+            --error-border: #fca5a5;
+            --error-text: #991b1b;
+            --error-code-bg: #7f1d1d;
+            --error-code-text: #fecaca;
+            --summary-bg: rgba(0, 0, 0, 0.03);
+            --summary-hover: rgba(0, 0, 0, 0.06);
+            --inline-code-bg: rgba(0, 0, 0, 0.08);
+            --thinking-text: #334155;
+            --upload-border: #d1d5db;
+            --upload-icon: #9ca3af;
+        }
+
+        /* Dark Theme Variables */
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --chat-bg: #1e293b;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --user-bubble: #1e3a8a;
+            --user-border: #1e40af;
+            --claude-bubble: #334155;
+            --claude-border: #475569;
+            --tool-bg: #1e293b;
+            --code-bg: #020617;
+            --code-text: #e2e8f0;
+            --error-bg: #450a0a;
+            --error-border: #7f1d1d;
+            --error-text: #fecaca;
+            --error-code-bg: #2a0404;
+            --error-code-text: #fca5a5;
+            --summary-bg: rgba(255, 255, 255, 0.05);
+            --summary-hover: rgba(255, 255, 255, 0.1);
+            --inline-code-bg: rgba(255, 255, 255, 0.15);
+            --thinking-text: #cbd5e1;
+            --upload-border: #475569;
+            --upload-icon: #64748b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        header {
+            background-color: var(--chat-bg);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--claude-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            z-index: 10;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .header-titles {
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .meta-info {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .theme-selector select {
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            border: 1px solid var(--claude-border);
+            background-color: var(--chat-bg);
+            color: var(--text-main);
+            font-size: 0.9rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .theme-selector select:hover {
+            border-color: var(--text-muted);
+        }
+
+        main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #upload-container {
+            margin-top: 10vh;
+            text-align: center;
+            background: var(--chat-bg);
+            padding: 3rem;
+            border-radius: 12px;
+            border: 2px dashed var(--upload-border);
+            width: 100%;
+            max-width: 500px;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        input[type="file"] {
+            margin-top: 1.5rem;
+            padding: 0.5rem;
+            border: 1px solid var(--claude-border);
+            border-radius: 6px;
+            background: var(--bg-color);
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        #chat-container {
+            display: none;
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: background-color 0.2s, border-color 0.2s;
+            word-break: break-word;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: var(--user-bubble);
+            border: 1px solid var(--user-border);
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background-color: var(--claude-bubble);
+            border: 1px solid var(--claude-border);
+            width: 100%;
+        }
+
+        .role-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        .content-text {
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        details {
+            background-color: var(--tool-bg);
+            border: 1px solid var(--claude-border);
+            border-radius: 8px;
+            margin-top: 0.75rem;
+            overflow: hidden;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        summary {
+            padding: 0.75rem 1rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            background-color: var(--summary-bg);
+            color: var(--text-main);
+            transition: background-color 0.2s;
+        }
+
+        summary:hover {
+            background-color: var(--summary-hover);
+        }
+
+        .details-content {
+            padding: 1rem;
+            border-top: 1px solid var(--claude-border);
+            font-size: 0.9rem;
+            color: var(--text-main);
+        }
+
+        .thinking {
+            border-left: 3px solid #8b5cf6;
+        }
+
+        .tool-use {
+            border-left: 3px solid #10b981;
+        }
+
+        .thinking-text {
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            white-space: pre-wrap;
+            color: var(--thinking-text);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .tool-result-header {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--claude-border);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .tool-error {
+            background-color: var(--error-bg);
+            border: 1px solid var(--error-border);
+            color: var(--error-text);
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+        }
+
+        .tool-error pre {
+            background-color: var(--error-code-bg);
+            color: var(--error-code-text);
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            margin: 0.5rem 0;
+            white-space: pre-wrap;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        .inline-code {
+            background: var(--inline-code-bg);
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            color: var(--text-main);
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        ul.kv-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        ul.kv-list li {
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="header-titles">
+            <h1>Claude Code Log Explorer</h1>
+            <div id="session-meta" class="meta-info">Upload a JSONL file to begin</div>
+        </div>
+        <div class="theme-selector">
+            <select id="themeSelect">
+                <option value="light">☀️ Light Theme</option>
+                <option value="dark">🌙 Dark Theme</option>
+            </select>
+        </div>
+    </header>
+
+    <main>
+        <div id="upload-container">
+            <svg width="48" height="48" fill="none" stroke="var(--upload-icon)" stroke-width="1.5" viewBox="0 0 24 24"
+                style="margin: 0 auto; display: block;">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z">
+                </path>
+            </svg>
+            <h2 style="margin-top: 1rem; color: var(--text-main);">Upload Session Log</h2>
+            <p style="color: var(--text-muted); font-size: 0.875rem;">Select your Claude Code JSONL log file to
+                visualize the conversation tree.</p>
+            <input type="file" id="fileInput" accept=".jsonl,.json,.txt">
+        </div>
+        <div id="chat-container"></div>
+    </main>
+
+    <script>
+        const themeSelect = document.getElementById('themeSelect');
+        const savedTheme = localStorage.getItem('explorer-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeSelect.value = savedTheme;
+
+        themeSelect.addEventListener('change', (e) => {
+            const newTheme = e.target.value;
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('explorer-theme', newTheme);
+        });
+
+        const fileInput = document.getElementById('fileInput');
+        const uploadContainer = document.getElementById('upload-container');
+        const chatContainer = document.getElementById('chat-container');
+        const sessionMeta = document.getElementById('session-meta');
+
+        // SECURITY FIX: Sanitize all text before injecting it into the DOM
+        function escapeHTML(str) {
+            if (typeof str !== 'string') return str;
+            return str.replace(/[&<>"']/g, function (match) {
+                const escape = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                };
+                return escape[match];
+            });
+        }
+
+        function formatMarkdown(text) {
+            if (!text) return '';
+            // Escape HTML first to prevent XSS
+            let formatted = escapeHTML(text);
+            formatted = formatted.replace(/```([\s\S]*?)```/g, function (match, code) {
+                return `<pre><code>${code.trim()}</code></pre>`;
+            });
+            formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+            return formatted;
+        }
+
+        function formatToolInput(name, input) {
+            if (!input || Object.keys(input).length === 0) return '<em>No input parameters provided.</em>';
+
+            let html = '<ul class="kv-list">';
+            const toolName = name.toLowerCase();
+
+            if (toolName.includes('bash')) {
+                html += `<li><strong>Command:</strong><pre><code>${escapeHTML(input.command)}</code></pre></li>`;
+            } else if (toolName.includes('read') || toolName.includes('view')) {
+                html += `<li><strong>Target File:</strong> <code class="inline-code">${escapeHTML(input.path || input.file || input.file_path)}</code></li>`;
+            } else if (toolName.includes('write') || toolName.includes('edit')) {
+                html += `<li><strong>Target File:</strong> <code class="inline-code">${escapeHTML(input.path || input.file)}</code></li>`;
+                if (input.content) html += `<li><strong>Content:</strong><pre><code>${escapeHTML(input.content)}</code></pre></li>`;
+                if (input.old_string) html += `<li><strong>Replace:</strong><pre><code>${escapeHTML(input.old_string)}</code></pre></li>`;
+                if (input.new_string) html += `<li><strong>With:</strong><pre><code>${escapeHTML(input.new_string)}</code></pre></li>`;
+            } else if (toolName.includes('glob')) {
+                html += `<li><strong>Pattern:</strong> <code class="inline-code">${escapeHTML(input.pattern)}</code></li>`;
+                if (input.dir || input.path) html += `<li><strong>Directory:</strong> <code class="inline-code">${escapeHTML(input.dir || input.path)}</code></li>`;
+            } else {
+                for (const [key, value] of Object.entries(input)) {
+                    if (typeof value === 'string' && value.includes('\\n')) {
+                        html += `<li><strong>${escapeHTML(key)}:</strong><pre><code>${escapeHTML(value)}</code></pre></li>`;
+                    } else {
+                        html += `<li><strong>${escapeHTML(key)}:</strong> <code class="inline-code">${escapeHTML(String(value))}</code></li>`;
+                    }
+                }
+            }
+            html += '</ul>';
+            return html;
+        }
+
+        function formatToolResult(content, isError) {
+            if (!content) return '<em>No result returned.</em>';
+
+            let html = '';
+            if (typeof content === 'string') {
+                html = `<pre><code>${escapeHTML(content.trim())}</code></pre>`;
+            } else if (Array.isArray(content)) {
+                html = content.map(c => {
+                    if (c.type === 'text') return `<pre><code>${escapeHTML(c.text.trim())}</code></pre>`;
+                    return `<pre><code>${escapeHTML(JSON.stringify(c, null, 2))}</code></pre>`;
+                }).join('');
+            } else {
+                html = `<pre><code>${escapeHTML(JSON.stringify(content, null, 2))}</code></pre>`;
+            }
+
+            if (isError) {
+                return `<div class="tool-error"><strong>⚠️ Execution Error:</strong><br>${html}</div>`;
+            }
+            return html;
+        }
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                processJSONL(text);
+            };
+            reader.readAsText(file);
+        });
+
+        function processJSONL(text) {
+            const lines = text.split('\n');
+            const events = [];
+
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                try {
+                    events.push(JSON.parse(line));
+                } catch (e) {
+                    console.error("Failed to parse line:", line);
+                }
+            });
+            renderChat(events);
+        }
+
+        function renderChat(events) {
+            uploadContainer.style.display = 'none';
+            chatContainer.style.display = 'flex';
+            chatContainer.innerHTML = '';
+
+            let sessionInfoSet = false;
+            const toolUseElements = {};
+
+            events.forEach(event => {
+                if (!sessionInfoSet && event.cwd) {
+                    sessionMeta.textContent = `Directory: ${escapeHTML(event.cwd)} | Branch: ${escapeHTML(event.gitBranch || 'N/A')}`;
+                    sessionInfoSet = true;
+                }
+
+                if (event.type === 'queue-operation' || event.isSidechain) return;
+
+                const msg = event.message;
+                if (!msg) return;
+
+                if (msg.role === 'user') {
+                    if (msg.content && Array.isArray(msg.content)) {
+                        let isStandardMessage = true;
+
+                        msg.content.forEach(block => {
+                            if (block.type === 'tool_result') {
+                                isStandardMessage = false;
+                                const toolContainer = toolUseElements[block.tool_use_id];
+                                if (toolContainer) {
+                                    const resultDiv = document.createElement('div');
+                                    resultDiv.innerHTML = `
+                                        <div class="tool-result-header">Execution Result</div>
+                                        ${formatToolResult(block.content, block.is_error)}
+                                    `;
+                                    toolContainer.appendChild(resultDiv);
+                                }
+                            } else if (block.type === 'text') {
+                                renderMessage('User', block.text, 'user');
+                            }
+                        });
+
+                        if (isStandardMessage && typeof msg.content === 'string') {
+                            renderMessage('User', msg.content, 'user');
+                        }
+                    } else if (typeof msg.content === 'string') {
+                        renderMessage('User', msg.content, 'user');
+                    }
+                }
+                else if (msg.role === 'assistant' && msg.content) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message assistant';
+
+                    const roleBadge = document.createElement('div');
+                    roleBadge.className = 'role-badge';
+                    roleBadge.textContent = 'Claude Code';
+                    messageDiv.appendChild(roleBadge);
+
+                    msg.content.forEach(block => {
+                        if (block.type === 'text') {
+                            const textDiv = document.createElement('div');
+                            textDiv.className = 'content-text';
+                            textDiv.innerHTML = formatMarkdown(block.text);
+                            messageDiv.appendChild(textDiv);
+                        }
+                        else if (block.type === 'thinking') {
+                            const details = document.createElement('details');
+                            details.className = 'thinking';
+                            details.innerHTML = `
+                                <summary>🤔 Claude's Reasoning Process</summary>
+                                <div class="details-content">
+                                    <div class="thinking-text">${escapeHTML(block.thinking)}</div>
+                                </div>
+                            `;
+                            messageDiv.appendChild(details);
+                        }
+                        else if (block.type === 'tool_use') {
+                            const details = document.createElement('details');
+                            details.className = 'tool-use';
+                            details.id = `tool-${escapeHTML(block.id)}`;
+                            details.innerHTML = `
+                                <summary>🛠️ Used Tool: ${escapeHTML(block.name)}</summary>
+                                <div class="details-content">
+                                    ${formatToolInput(block.name, block.input)}
+                                </div>
+                            `;
+                            messageDiv.appendChild(details);
+                            toolUseElements[block.id] = details;
+                        }
+                    });
+
+                    chatContainer.appendChild(messageDiv);
+                }
+            });
+        }
+
+        function renderMessage(role, text, type) {
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.innerHTML = `
+                <div class="role-badge">${escapeHTML(role)}</div>
+                <div class="content-text">${formatMarkdown(text)}</div>
+            `;
+            chatContainer.appendChild(div);
+        }
+    </script>
+</body>
+
+</html>
